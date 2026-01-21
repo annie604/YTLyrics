@@ -1,60 +1,108 @@
-// 1. 建立視覺標籤
-const debugLabel = document.createElement('div');
-debugLabel.style.cssText = "position:fixed; top:60px; left:20px; z-index:10000; background:rgba(0,0,0,0.85); color:#00ff00; padding:10px; border-radius:8px; font-size:14px; border:1px solid #444; font-family:sans-serif; cursor:pointer;";
-debugLabel.innerText = "🔍 正在偵測音樂...";
-document.body.appendChild(debugLabel);
+// --- 1. 初始化 UI 容器 ---
+const lyricBox = document.createElement('div');
+lyricBox.id = "lyric-assistant-banner";
+lyricBox.style.cssText = `
+    position: fixed; top: 80px; right: 20px; width: 320px; 
+    background: rgba(15, 15, 15, 0.95); color: white; padding: 20px; 
+    border-radius: 12px; z-index: 10000; font-family: sans-serif;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5); border: 1px solid #333;
+    pointer-events: auto;
+`;
+document.body.appendChild(lyricBox);
 
-let lastTitle = "";
+let allLines = [];
+let currentIndex = 0;
+let lastDetectedTitle = "";
+let lyricTimer = null;
 
-function getCleanInfo() {
-    let rawTitle = "";
-    let rawArtist = "";
-
-    // 嘗試方法 A: 從 YouTube 播放器組件抓取
-    const player = document.getElementById('movie_player');
-    if (player && typeof player.getVideoData === 'function') {
-        const data = player.getVideoData();
-        rawTitle = data.title;
-        rawArtist = data.author;
-    } 
+// --- 2. 核心：偵測與清理邏輯 (結合你原有的代碼) ---
+function getMusicInfo() {
+    // 改用 querySelector 確保擴充功能環境一定抓得到文字
+    const titleElem = document.querySelector('h1.ytd-video-primary-info-renderer yt-formatted-string') || 
+                      document.querySelector('ytd-video-primary-info-renderer h1') ||
+                      document.querySelector('.ytp-title-link');
     
-    // 嘗試方法 B: 如果方法 A 失敗，直接抓網頁的 Title 標籤 (備案)
-    if (!rawTitle) {
-        rawTitle = document.title.replace(" - YouTube", "");
-        rawArtist = document.querySelector("#upload-info #channel-name a")?.innerText || "";
+    const artistElem = document.querySelector('#upload-info #channel-name a') || 
+                       document.querySelector('ytd-video-owner-renderer #channel-name a');
+
+    if (titleElem && titleElem.innerText) {
+        let title = titleElem.innerText;
+        let artist = artistElem ? artistElem.innerText : "未知歌手";
+
+        // 避免重複觸發
+        if (title === lastDetectedTitle) return null;
+        lastDetectedTitle = title;
+
+        // --- 你原本的清理邏輯 ---
+        title = title.replace(/\[.*?\]|\(.*?\)|【.*?】|「.*?」|Official|MV|Music Video|HD|4K/gi, '').trim();
+        if (title.includes(artist)) {
+            const regex = new RegExp(`^${artist}\\s*[-/：:：]\\s*`, 'i');
+            title = title.replace(regex, '');
+        }
+        title = title.replace(/^[-/：:：\s]+|[-/：:：\s]+$/g, '').trim();
+
+        return { artist, title };
     }
-
-    if (!rawTitle || rawTitle === lastTitle) return null;
-    lastTitle = rawTitle;
-
-    // --- 清理邏輯 ---
-    let cleanTitle = rawTitle.replace(/\[.*?\]|\(.*?\)|【.*?】|「.*?」|Official|MV|Music Video|HD|4K|Visualizer|Lyric Video/gi, '').trim();
-    let cleanArtist = rawArtist.replace(/ - Topic$/g, ''); // 移除 YouTube 自動生成的 Topic 字眼
-
-    // 移除標題中重複的歌手名
-    if (cleanTitle.includes(cleanArtist)) {
-        const regex = new RegExp(`^${cleanArtist}\\s*[-/：:：]\\s*`, 'i');
-        cleanTitle = cleanTitle.replace(regex, '');
-    }
-    cleanTitle = cleanTitle.replace(/^[-/：:：\s]+|[-/：:：\s]+$/g, '').trim();
-
-    return { artist: cleanArtist, title: cleanTitle };
+    return null;
 }
 
-// 點擊標籤直接搜尋
-debugLabel.onclick = () => {
-    const text = debugLabel.innerText.replace("🎵 搜尋歌詞：", "");
-    if (text) {
-        window.open(`https://www.google.com/search?q=${encodeURIComponent(text + " 歌詞")}`, '_blank');
+// --- 3. 渲染 UI ---
+function updateUI(statusMessage = null) {
+    if (statusMessage) {
+        lyricBox.innerHTML = `<div style="color: #00ffcc;">${statusMessage}</div>`;
+        return;
     }
-};
 
-// 每 2 秒掃描一次
-setInterval(() => {
-    const info = getCleanInfo();
-    if (info) {
-        const displayLink = `${info.artist} - ${info.title}`;
-        debugLabel.innerText = `🎵 搜尋歌詞：${displayLink}`;
-        console.log("✅ 成功抓取資訊:", info);
+    const past = allLines.slice(Math.max(0, currentIndex - 2), currentIndex);
+    const current = allLines[currentIndex] || "（奏中）";
+    const future = allLines.slice(currentIndex + 1, currentIndex + 3);
+
+    lyricBox.innerHTML = `
+        <div style="opacity: 0.3; font-size: 13px; height: 32px; overflow: hidden;">${past.join('<br>') || '&nbsp;'}</div>
+        <div style="opacity: 1; font-size: 18px; font-weight: bold; color: #00ffcc; margin: 15px 0;">${current}</div>
+        <div style="opacity: 0.3; font-size: 13px; height: 32px; overflow: hidden;">${future.join('<br>') || '&nbsp;'}</div>
+        <div style="font-size: 10px; color: #555; text-align: right; margin-top: 5px;">自動滾動中</div>
+    `;
+}
+
+// --- 4. 抓取歌詞 ---
+async function startLyricsService(info) {
+    if (lyricTimer) clearInterval(lyricTimer);
+    currentIndex = 0;
+    allLines = [];
+    updateUI(`🔍 搜尋中：${info.title}`);
+
+    try {
+        const res = await fetch(`https://lrclib.net/api/get?artist_name=${encodeURIComponent(info.artist)}&track_name=${encodeURIComponent(info.title)}`);
+        const data = await res.json();
+        
+        if (data && data.plainLyrics) {
+            allLines = data.plainLyrics.split('\n').filter(l => l.trim() !== "");
+            updateUI();
+            
+            // 每 5 秒移動一行
+            lyricTimer = setInterval(() => {
+                if (currentIndex < allLines.length - 1) {
+                    currentIndex++;
+                    updateUI();
+                }
+            }, 5000);
+        } else {
+            updateUI("❌ 找不到歌詞");
+        }
+    } catch (e) {
+        updateUI("⚠️ 搜尋連線失敗");
     }
-}, 2000);
+}
+
+// --- 5. 主迴圈 (每 3 秒檢查一次是否有換歌) ---
+setInterval(() => {
+    const info = getMusicInfo();
+    if (info) {
+        console.log("🎵 偵測到音樂：", info.artist, "-", info.title);
+        startLyricsService(info);
+    }
+}, 3000);
+
+// 初始化提示
+updateUI("等待音樂播放中...");
