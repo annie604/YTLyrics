@@ -1,46 +1,60 @@
-// 在網頁上建立一個小標籤，方便觀察狀態
+// 1. 建立視覺標籤
 const debugLabel = document.createElement('div');
-debugLabel.style.cssText = "position:fixed; top:10px; left:10px; z-index:9999; background:rgba(0,0,0,0.8); color:white; padding:5px 10px; border-radius:5px; font-size:12px;";
-debugLabel.innerText = "歌詞助手啟動中...";
+debugLabel.style.cssText = "position:fixed; top:60px; left:20px; z-index:10000; background:rgba(0,0,0,0.85); color:#00ff00; padding:10px; border-radius:8px; font-size:14px; border:1px solid #444; font-family:sans-serif; cursor:pointer;";
+debugLabel.innerText = "🔍 正在偵測音樂...";
 document.body.appendChild(debugLabel);
 
-let lastSongId = "";
+let lastTitle = "";
 
-function getCleanMetadata() {
+function getCleanInfo() {
+    let rawTitle = "";
+    let rawArtist = "";
+
+    // 嘗試方法 A: 從 YouTube 播放器組件抓取
     const player = document.getElementById('movie_player');
-    // 有時候 player 對象還沒準備好，需要檢查 getVideoData 是否存在
     if (player && typeof player.getVideoData === 'function') {
         const data = player.getVideoData();
-        const videoId = data.video_id;
-
-        if (videoId === lastSongId) return null;
-        lastSongId = videoId;
-
-        let title = data.title;
-        let artist = data.author;
-
-        // 清理標題邏輯
-        title = title.replace(/\[.*?\]|\(.*?\)|【.*?】|「.*?」|Official|MV|Music Video|HD|4K/gi, '').trim();
-        if (title.includes(artist)) {
-            const regex = new RegExp(`^${artist}\\s*[-/：:：]\\s*`, 'i');
-            title = title.replace(regex, '');
-        }
-        title = title.replace(/^[-/：:：\s]+|[-/：:：\s]+$/g, '').trim();
-
-        return { artist, title };
+        rawTitle = data.title;
+        rawArtist = data.author;
+    } 
+    
+    // 嘗試方法 B: 如果方法 A 失敗，直接抓網頁的 Title 標籤 (備案)
+    if (!rawTitle) {
+        rawTitle = document.title.replace(" - YouTube", "");
+        rawArtist = document.querySelector("#upload-info #channel-name a")?.innerText || "";
     }
-    return null;
+
+    if (!rawTitle || rawTitle === lastTitle) return null;
+    lastTitle = rawTitle;
+
+    // --- 清理邏輯 ---
+    let cleanTitle = rawTitle.replace(/\[.*?\]|\(.*?\)|【.*?】|「.*?」|Official|MV|Music Video|HD|4K|Visualizer|Lyric Video/gi, '').trim();
+    let cleanArtist = rawArtist.replace(/ - Topic$/g, ''); // 移除 YouTube 自動生成的 Topic 字眼
+
+    // 移除標題中重複的歌手名
+    if (cleanTitle.includes(cleanArtist)) {
+        const regex = new RegExp(`^${cleanArtist}\\s*[-/：:：]\\s*`, 'i');
+        cleanTitle = cleanTitle.replace(regex, '');
+    }
+    cleanTitle = cleanTitle.replace(/^[-/：:：\s]+|[-/：:：\s]+$/g, '').trim();
+
+    return { artist: cleanArtist, title: cleanTitle };
 }
 
-setInterval(() => {
-    const info = getCleanMetadata();
-    if (info) {
-        const msg = `🎵 正在播放：${info.artist} - ${info.title}`;
-        console.log("%c" + msg, "color: #00ff00; font-weight: bold; font-size: 16px;"); // 用綠色粗體顯示，比較好找
-        debugLabel.innerText = msg; // 顯示在左上角
-        
-        // 自動生成搜尋連結
-        const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(info.artist + " " + info.title + " 歌詞")}`;
-        console.log("🔍 點擊搜尋：", searchUrl);
+// 點擊標籤直接搜尋
+debugLabel.onclick = () => {
+    const text = debugLabel.innerText.replace("🎵 搜尋歌詞：", "");
+    if (text) {
+        window.open(`https://www.google.com/search?q=${encodeURIComponent(text + " 歌詞")}`, '_blank');
     }
-}, 3000);
+};
+
+// 每 2 秒掃描一次
+setInterval(() => {
+    const info = getCleanInfo();
+    if (info) {
+        const displayLink = `${info.artist} - ${info.title}`;
+        debugLabel.innerText = `🎵 搜尋歌詞：${displayLink}`;
+        console.log("✅ 成功抓取資訊:", info);
+    }
+}, 2000);
