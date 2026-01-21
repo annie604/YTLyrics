@@ -1,0 +1,13 @@
+{
+  "manifest_version": 3,
+  "name": "YouTube 歌詞助手",
+  "version": "1.1",
+  "permissions": ["activeTab"],
+  "content_scripts": [
+    {
+      "matches": ["https://www.youtube.com/watch*"],
+      "js": ["content.js"],
+      "all_frames": false
+    }
+  ]
+}
