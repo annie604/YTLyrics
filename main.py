@@ -1,12 +1,14 @@
 import os
-from crawler.firecrawl import search_and_scrape_lyrics
+from crawler.firecrawl import LyricsFetcher
+
 
 def main():
     artist = 'ヨルシカ'
     song_title = '忘れてください' 
     filename = f"{artist}_{song_title}.md"
-
-    search_results = search_and_scrape_lyrics(artist, song_title)
+    
+    fetcher = LyricsFetcher()
+    search_results = fetcher.search_and_scrape(artist, song_title)
 
     if isinstance(search_results, str):
         markdown_content = search_results
