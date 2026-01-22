@@ -1,37 +1,37 @@
-import os
-from crawler.firecrawl import LyricsFetcher
+from fastapi import FastAPI, HTTPException
+from dotenv import load_dotenv
+from app.schemas import LyricsRequest, LyricsResponse
+from app.graph import graph_app
 
+load_dotenv()
 
-def main():
-    artist = 'ヨルシカ'
-    song_title = '忘れてください' 
-    filename = f"{artist}_{song_title}.md"
+app = FastAPI(title="Lyrics Router Agent")
+
+@app.post("/lyrics", response_model=LyricsResponse)
+async def get_lyrics(request: LyricsRequest):
+    # 1. 準備初始狀態
+    initial_state = {
+        "artist": request.artist,
+        "song": request.song_title,
+        "source": "web", # 預設
+        "raw_content": None,
+        "final_result": None
+    }
     
-    fetcher = LyricsFetcher()
-    search_results = fetcher.search_and_scrape(artist, song_title)
-
-    if isinstance(search_results, str):
-        markdown_content = search_results
-    elif isinstance(search_results, list) and search_results:
-        markdown_content = f"# {artist} - {song_title} 歌詞搜尋結果\n\n"
-        
-        for page in search_results:
-            markdown_content += f"## 來源 {page['index']}: {page['page_title']}\n"
-            markdown_content += f"**網址**: {page['source_url']}\n\n"
-            markdown_content += page['raw_markdown']
-            markdown_content += "\n\n---\n\n"
+    # 2. 執行 LangGraph (invoke 是同步的，如果要高併發可用 ainvoke)
+    result = await graph_app.ainvoke(initial_state)
+    
+    # 3. 處理結果並回傳
+    if result.get("final_result"):
+        return LyricsResponse(
+            lyrics=result["final_result"]["lyrics"],
+            language=result["final_result"]["language"],
+            source="web" # 或 result['source']
+        )
+    elif result.get("source") == "failed":
+        return LyricsResponse(lyrics=None, source="failed", error="Lyrics not found")
     else:
-        markdown_content = "未找到任何歌詞資料"
+        return LyricsResponse(lyrics=None, source="unknown", error="Processing failed")
 
+# 本地開發啟動指令: uvicorn main:app --reload
 
-    os.makedirs("lyrics", exist_ok=True)
-
-    filepath = os.path.join("lyrics", filename)
-    with open(filepath, 'w', encoding='utf-8') as f:
-        f.write(markdown_content)
-    
-    print(f"歌詞已儲存至: {filepath}")
-
-
-if __name__ == "__main__":
-    main()
