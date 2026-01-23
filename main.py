@@ -29,9 +29,9 @@ async def get_lyrics(request: LyricsRequest):
             source="web" # 或 result['source']
         )
     elif result.get("source") == "failed":
-        return LyricsResponse(lyrics=None, source="failed", error="Lyrics not found")
+        return LyricsResponse(lyrics=None, source="failed", error="Lyrics not found", language=None)
     else:
-        return LyricsResponse(lyrics=None, source="unknown", error="Processing failed")
+        return LyricsResponse(lyrics=None, source="unknown", error="Processing failed", language=None)
 
 # 本地開發啟動指令: uvicorn main:app --reload
 

@@ -1,6 +1,8 @@
 fastapi
 uvicorn
 langchain
+langchain-community
+langchain-ollama
 langchain-openai
 langchain-groq
 langchain-google-genai

@@ -2,14 +2,62 @@ import os
 from dotenv import load_dotenv
 from typing import TypedDict, Optional
 from langgraph.graph import StateGraph, END
+
+# --- 模型引用 ---
+from langchain_community.chat_models import ChatOllama
 from langchain_openai import ChatOpenAI
 from langchain_groq import ChatGroq
 from langchain_google_genai import ChatGoogleGenerativeAI
+
+# --- 工具與解析器 ---
+from langchain_core.prompts import PromptTemplate
+from langchain_core.output_parsers import PydanticOutputParser
 from app.schemas import CleanLyrics
 from app.tools.crawler import fetch_lyrics_from_web
 
 
 load_dotenv()
+
+def get_llm():
+    """
+    根據 .env 的 LLM_PROVIDER 回傳對應的模型實例與模式
+    Return: (llm_instance, mode)
+    mode: 'cloud' (支援 structured_output) | 'local' (需要用 parser)
+    """
+    provider = os.getenv("LLM_PROVIDER", "ollama").lower()
+    
+    print(f"🤖 [System] Loading Model Provider: {provider}")
+
+    if provider == "google":
+        return ChatGoogleGenerativeAI(
+            model="gemini-2.5-flash",
+            google_api_key=os.getenv("GOOGLE_API_KEY"),
+            temperature=0
+        ), "cloud"
+        
+    elif provider == "openai":
+        return ChatOpenAI(
+            model="gpt-4o-mini",
+            temperature=0
+        ), "cloud"
+        
+    elif provider == "groq":
+        return ChatGroq(
+            model="llama3-8b-8192",
+            api_key=os.getenv("GROQ_API_KEY"),
+            temperature=0
+        ), "cloud"
+        
+    else: # 預設為 Ollama (Local)
+        return ChatOllama(
+            model="llama3",
+            temperature=0,
+            keep_alive="5m",
+            format="json"
+        ), "local"
+
+# 初始化 (全域變數)
+llm, llm_mode = get_llm()
 
 # 1. 定義狀態 (State) - 節點間傳遞的資料包
 class AgentState(TypedDict):
@@ -18,25 +66,6 @@ class AgentState(TypedDict):
     raw_content: Optional[str]
     final_result: Optional[dict] # 存放最終清洗後的資料
     source: str # 'cache' | 'web' | 'failed'
-
-# 2. 初始化 LLM
-# llm = ChatOpenAI(
-#     model="gpt-4o-mini", 
-#     temperature=0
-# )
-
-
-# llm = ChatGroq(
-#     model="llama3-8b-8192", 
-#     api_key=os.getenv("GROQ_API_KEY"),
-#     temperature=0
-# )
-
-llm = ChatGoogleGenerativeAI(
-    model="gemini-2.0-flash-lite",
-    google_api_key=os.getenv("GOOGLE_API_KEY"),
-    temperature=0
-)
 
 # --- 定義節點 (Nodes) ---
 
@@ -58,23 +87,60 @@ def crawler_node(state: AgentState):
 def cleaner_node(state: AgentState):
     """LLM 清洗"""
     print(f"🧹 [Node: Cleaner] LLM 清洗中...")
-    if not state.get('raw_content'):
-        return {"final_result": None}
 
-    # 使用 Structured Output 強制轉 JSON
-    structured_llm = llm.with_structured_output(CleanLyrics)
-    
-    prompt = f"Extract lyrics for {state['artist']} - {state['song']}. \n\nRaw:\n{state['raw_content'][:15000]}"
+    raw_content = state.get('raw_content')
+    if not raw_content:
+        return {"final_result": None}
+    truncated_content = raw_content[:15000]
+
     try:
-        result = structured_llm.invoke(prompt)
-        return {
-            "final_result": {
-                "lyrics": result.content,
-                "language": result.language
+        if llm_mode == "cloud":
+            structured_llm = llm.with_structured_output(CleanLyrics)
+            prompt = f"Extract lyrics for {state['artist']} - {state['song']}. \n\nRaw:\n{truncated_content}"
+            result = structured_llm.invoke(prompt)
+            
+            # result 是 Pydantic 物件
+            return {
+                "final_result": {
+                    "lyrics": result.lyrics,  # 注意：屬性通常是定義的欄位名
+                    "language": result.language
+                }
             }
-        }
+    
+        else:
+            parser = PydanticOutputParser(pydantic_object=CleanLyrics)
+            
+            prompt_template = PromptTemplate(
+                template="""
+                You are a lyrics editor. Extract lyrics for "{artist}" - "{song}".
+                
+                Raw Content:
+                {raw_content}
+                
+                {format_instructions}
+                """,
+                input_variables=["artist", "song", "raw_content"],
+                partial_variables={"format_instructions": parser.get_format_instructions()}
+            )
+            
+            # 建立 Chain: Prompt -> LLM -> Parser
+            chain = prompt_template | llm | parser
+            
+            result = chain.invoke({
+                "artist": state['artist'],
+                "song": state['song'],
+                "raw_content": truncated_content
+            })
+            
+            return {
+                "final_result": {
+                    "lyrics": result.lyrics,
+                    "language": result.language
+                }
+            }
+
     except Exception as e:
-        print(f"LLM Error: {e}")
+        print(f"❌ LLM Processing Error: {e}")
         return {"source": "failed"}
 
 # --- 定義圖 (Graph) ---

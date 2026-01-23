@@ -10,11 +10,12 @@ class LyricsRequest(BaseModel):
 class LyricsResponse(BaseModel):
     lyrics: Optional[str]
     source: str  # "cache" or "web"
-    language: Optional[str]
+    language: Optional[str] = None
     error: Optional[str] = None
 
 # 3. LLM 輸出的結構 (用於資料清洗)
 class CleanLyrics(BaseModel):
-    content: str = Field(description="清洗後的純歌詞，保留換行")
-    language: str = Field(description="歌詞語言 (en, zh, ja...)")
-    is_instrumental: bool = Field(description="是否為純音樂")
+    song: str = Field(description="The song title")
+    artist: str = Field(description="The artist name")
+    lyrics: str = Field(description="The cleaned lyrics content") 
+    language: str = Field(description="The language of the lyrics (e.g. zh, en)")

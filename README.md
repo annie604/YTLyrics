@@ -15,6 +15,18 @@ lyrics-router/
         └── crawler.py    # 封裝 Firecrawl 邏輯
 ```
 
+## Setting
+`.env`
+```
+# 選擇你的模型提供者: 'ollama', 'google', 'openai', 'groq'
+LLM_PROVIDER=ollama
+ 
+# API Keys
+FIRECRAWL_API_KEY = 
+GOOGLE_API_KEY = 
+GROQ_API_KEY = 
+```
+
 
 ## Test Execute
 ```
