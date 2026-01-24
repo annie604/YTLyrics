@@ -47,6 +47,26 @@ def get_llm():
             temperature=0
         ), "cloud"
         
+    elif provider == "phi3.5":
+        return ChatOllama(
+            model="phi3.5",      
+            temperature=0,
+            keep_alive="5m",
+            format="json",
+            num_ctx=8192,
+            timeout=60.0
+        ), "local"
+
+    elif provider == "qwen3":
+        return ChatOllama(
+            model="qwen3:4b-instruct",      
+            temperature=0,
+            keep_alive="5m",
+            format="json",
+            num_ctx=8192,
+            timeout=60.0
+        ), "local"
+
     else: # 預設為 Ollama (Local)
         return ChatOllama(
             model="llama3",
@@ -108,7 +128,7 @@ def cleaner_node(state: AgentState):
     
         else:
             parser = PydanticOutputParser(pydantic_object=CleanLyrics)
-            
+
             prompt_template = PromptTemplate(
                 template="""
                 You are a lyrics editor. Extract lyrics for "{artist}" - "{song}".

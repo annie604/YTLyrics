@@ -17,8 +17,8 @@ lyrics-router/
 
 ## `.env`
 ```
-# 選擇你的模型提供者: 'ollama', 'google', 'openai', 'groq'
-LLM_PROVIDER=ollama
+# 選擇你的模型提供者: `ollama`, `qwen3`, 'google', 'openai', 'groq', 'phi3.5'
+LLM_PROVIDER = ollama
  
 # API Keys
 FIRECRAWL_API_KEY = 
@@ -26,10 +26,10 @@ GOOGLE_API_KEY =
 GROQ_API_KEY = 
 
 # LangSmith
-LANGSMITH_TRACING=true
-LANGSMITH_ENDPOINT=https://api.smith.langchain.com
-LANGSMITH_API_KEY=<your-api-key>
-LANGSMITH_PROJECT="YTLyrics"
+LANGSMITH_TRACING = true
+LANGSMITH_ENDPOINT = https://api.smith.langchain.com
+LANGSMITH_API_KEY = <your-api-key>
+LANGSMITH_PROJECT = "YTLyrics"
 ```
 
 ## Environment
