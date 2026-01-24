@@ -2,9 +2,10 @@ import os
 from dotenv import load_dotenv
 from typing import TypedDict, Optional
 from langgraph.graph import StateGraph, END
+load_dotenv()
 
 # --- 模型引用 ---
-from langchain_community.chat_models import ChatOllama
+from langchain_ollama import ChatOllama
 from langchain_openai import ChatOpenAI
 from langchain_groq import ChatGroq
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -15,8 +16,6 @@ from langchain_core.output_parsers import PydanticOutputParser
 from app.schemas import CleanLyrics
 from app.tools.crawler import fetch_lyrics_from_web
 
-
-load_dotenv()
 
 def get_llm():
     """

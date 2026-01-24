@@ -15,8 +15,7 @@ lyrics-router/
         └── crawler.py    # 封裝 Firecrawl 邏輯
 ```
 
-## Setting
-`.env`
+## `.env`
 ```
 # 選擇你的模型提供者: 'ollama', 'google', 'openai', 'groq'
 LLM_PROVIDER=ollama
@@ -25,8 +24,19 @@ LLM_PROVIDER=ollama
 FIRECRAWL_API_KEY = 
 GOOGLE_API_KEY = 
 GROQ_API_KEY = 
+
+# LangSmith
+LANGSMITH_TRACING=true
+LANGSMITH_ENDPOINT=https://api.smith.langchain.com
+LANGSMITH_API_KEY=<your-api-key>
+LANGSMITH_PROJECT="YTLyrics"
 ```
 
+## Environment
+python: 3.10
+```
+pip install -r requirments.txt
+```
 
 ## Test Execute
 ```
