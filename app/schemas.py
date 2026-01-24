@@ -18,4 +18,4 @@ class CleanLyrics(BaseModel):
     song: str = Field(description="The song title")
     artist: str = Field(description="The artist name")
     lyrics: str = Field(description="The cleaned lyrics content") 
-    language: str = Field(description="The language of the lyrics (e.g. zh, en)")
+    language: Optional[str] = Field(description="The language of the lyrics (e.g. zh, en)", default="unknown")
